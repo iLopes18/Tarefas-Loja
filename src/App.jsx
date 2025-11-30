@@ -79,7 +79,6 @@ const getDefaultTasks = () => {
 };
 
 // --- CONFIGURAÇÃO FIREBASE ---
-// Certifique-se que estes dados correspondem ao seu projeto no Firebase Console
 const firebaseConfig = {
   apiKey: "AIzaSyA-h2KUKkBFHnWiQHm8XGVE2L84tw11DkM",
   authDomain: "tarefas-loja.firebaseapp.com",
@@ -93,13 +92,9 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-
-// ID da App
 const APP_ID = "lojas-app-geral";
 
-// --- FUNÇÃO AUXILIAR PARA CRIAR REFERÊNCIA ---
-// Corrige o erro dos "5 segments". Agora cria um caminho com 6 segmentos:
-// artifacts -> APP_ID -> public -> data -> lojas -> NomeDaLoja
+// --- FUNÇÃO DE REFERÊNCIA (CORRIGIDA) ---
 const getStoreRef = (storeName) => {
   return doc(db, 'artifacts', APP_ID, 'public', 'data', 'lojas', storeName.toLowerCase().trim());
 };
@@ -115,14 +110,38 @@ const DAYS = [
   { id: 'dom', label: 'Domingo', index: 0 },
 ];
 
+// --- CONFIGURAÇÃO DE RESET SEMANAL ---
+// Alterar aqui para mudar o dia e hora do reset
+const RESET_DAY_INDEX = 0; // 0=Dom, 1=Seg, 2=Ter, 3=Qua, 4=Qui, 5=Sex, 6=Sáb
+const RESET_HOUR = 11;     // Hora (0-23)
+const RESET_MINUTE = 57;   // Minuto (0-59)
+
 const getLastResetTime = () => {
   const now = new Date();
   const d = new Date();
-  const daysSinceSaturday = (d.getDay() + 1) % 7; 
-  d.setDate(d.getDate() - daysSinceSaturday);
-  d.setHours(23, 59, 0, 0);
-  if (d > now) d.setDate(d.getDate() - 7);
+  
+  // Calcula a diferença de dias para o dia de reset alvo
+  // Fórmula: (DiaAtual - DiaAlvo + 7) % 7
+  const diffDays = (d.getDay() - RESET_DAY_INDEX + 7) % 7; 
+  
+  d.setDate(d.getDate() - diffDays);
+  d.setHours(RESET_HOUR, RESET_MINUTE, 0, 0);
+  
+  // Se a data calculada for no futuro (ainda não passou a hora de reset de hoje),
+  // então o último reset foi há uma semana atrás.
+  if (d > now) {
+    d.setDate(d.getDate() - 7);
+  }
   return d;
+};
+
+// Nova função para descobrir o ID do dia atual
+const getTodayId = () => {
+  const todayIndex = new Date().getDay(); // 0 é Domingo, 1 é Segunda, etc.
+  // Encontra o dia no nosso array que corresponde ao índice do JS
+  const todayObj = DAYS.find(d => d.index === todayIndex);
+  // Se encontrar devolve o ID (ex: 'seg'), senão devolve 'seg' por segurança
+  return todayObj ? todayObj.id : 'seg';
 };
 
 // --- COMPONENTE PRINCIPAL ---
@@ -131,7 +150,10 @@ export default function App() {
   const [activeStore, setActiveStore] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDay, setSelectedDay] = useState(DAYS[0].id);
+  
+  // AQUI ESTÁ A MUDANÇA: Inicia com o dia de hoje em vez de DAYS[0].id
+  const [selectedDay, setSelectedDay] = useState(getTodayId());
+  
   const [newTaskText, setNewTaskText] = useState('');
   const [isResetting, setIsResetting] = useState(false);
 
@@ -158,7 +180,11 @@ export default function App() {
     if (!user || !activeStore) return;
     setLoading(true);
     
-    // USAR A NOVA FUNÇÃO DE REFERÊNCIA (CORRIGIDO)
+    // Atualiza o dia selecionado para hoje sempre que se troca de loja ou entra
+    // Opcional: Se quiser que ele mude o dia automaticamente se a app ficar aberta 24h, precisaria de um timer
+    // Mas para o uso normal (abrir a app), isto basta.
+    setSelectedDay(getTodayId());
+
     const storeRef = getStoreRef(activeStore);
 
     const unsubscribe = onSnapshot(storeRef, async (docSnap) => {
@@ -167,13 +193,11 @@ export default function App() {
         let currentTasks = data.tasks || [];
         const lastReset = data.lastReset ? data.lastReset.toDate() : new Date(0);
         
-        // Auto-preenchimento se vazio
         if (currentTasks.length === 0) {
             currentTasks = getDefaultTasks();
             await updateDoc(storeRef, { tasks: currentTasks });
         }
 
-        // Reset Automático
         const shouldHaveResetAt = getLastResetTime();
         if (lastReset < shouldHaveResetAt) {
             setIsResetting(true);
@@ -190,7 +214,6 @@ export default function App() {
         }
 
       } else {
-        // Criar loja nova
         await setDoc(storeRef, {
             tasks: getDefaultTasks(),
             createdAt: Timestamp.now(),
@@ -207,7 +230,6 @@ export default function App() {
   }, [user, activeStore]);
 
   // --- AÇÕES ---
-
   const selectStore = (storeName) => {
     localStorage.setItem('myStoreName', storeName);
     setActiveStore(storeName);
@@ -231,9 +253,7 @@ export default function App() {
       createdAt: new Date().toISOString()
     };
 
-    // USAR A NOVA FUNÇÃO DE REFERÊNCIA
     const storeRef = getStoreRef(activeStore);
-    
     try {
       await updateDoc(storeRef, { tasks: arrayUnion(newTask) });
       setNewTaskText('');
@@ -245,14 +265,12 @@ export default function App() {
       if (t.id === task.id) return { ...t, completed: !t.completed };
       return t;
     });
-    // USAR A NOVA FUNÇÃO DE REFERÊNCIA
     const storeRef = getStoreRef(activeStore);
     await updateDoc(storeRef, { tasks: updatedTasks });
   };
 
   const deleteTask = async (task) => {
     if(!confirm("Apagar tarefa?")) return;
-    // USAR A NOVA FUNÇÃO DE REFERÊNCIA
     const storeRef = getStoreRef(activeStore);
     await updateDoc(storeRef, { tasks: arrayRemove(task) });
   };
