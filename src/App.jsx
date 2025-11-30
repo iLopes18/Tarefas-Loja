@@ -113,8 +113,8 @@ const DAYS = [
 // --- CONFIGURAÇÃO DE RESET SEMANAL ---
 // Alterar aqui para mudar o dia e hora do reset
 const RESET_DAY_INDEX = 0; // 0=Dom, 1=Seg, 2=Ter, 3=Qua, 4=Qui, 5=Sex, 6=Sáb
-const RESET_HOUR = 11;     // Hora (0-23)
-const RESET_MINUTE = 57;   // Minuto (0-59)
+const RESET_HOUR = 23;     // Hora (0-23)
+const RESET_MINUTE = 59;   // Minuto (0-59)
 
 const getLastResetTime = () => {
   const now = new Date();
@@ -317,7 +317,9 @@ export default function App() {
               </button>
             ))}
           </div>
-          <div className="mt-8 text-center text-xs text-slate-400">Reset automático aos Sábados</div>
+          <div className="mt-8 text-center text-xs text-slate-400">
+            Reset automático {([0, 6].includes(RESET_DAY_INDEX) ? 'aos' : 'às')} {DAYS.find(d => d.index === RESET_DAY_INDEX)?.label}s
+          </div>
         </div>
       </div>
     );
