@@ -34,7 +34,7 @@ import {
 // Edite aqui os nomes das suas lojas
 const STORES = [
   "Loja 272",
-  "Loja 271",
+  "Loja 201",
   "Loja 270"
 ];
 
