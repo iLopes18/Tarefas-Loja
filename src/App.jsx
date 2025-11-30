@@ -2,13 +2,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
 import { 
   getFirestore, 
-  collection, 
   doc, 
   setDoc, 
   onSnapshot, 
   updateDoc, 
   arrayUnion, 
-  arrayRemove,
+  arrayRemove, 
   Timestamp 
 } from 'firebase/firestore';
 import { 
@@ -22,14 +21,23 @@ import {
   Store, 
   Plus, 
   Trash2, 
-  Calendar, 
   LogOut,
-  AlertTriangle
+  AlertTriangle,
+  MapPin,
+  ArrowRight,
+  ShoppingBag
 } from 'lucide-react';
 
+// --- LISTA DE LOJAS ---
+const STORES = [
+  "Loja Lisboa",
+  "Loja Porto",
+  "Loja Coimbra",
+  "Loja Algarve",
+  "Loja Online"
+];
+
 // --- CONFIGURAÇÃO FIREBASE ---
-// 1. Vá ao Firebase Console > Project Settings > General > Your apps
-// 2. Copie o objeto 'firebaseConfig' e substitua o objeto abaixo:
 const firebaseConfig = {
   apiKey: "AIzaSyA-h2KUKkBFHnWiQHm8XGVE2L84tw11DkM",
   authDomain: "tarefas-loja.firebaseapp.com",
@@ -43,10 +51,11 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-// Definimos um ID fixo para a app já que é um site único
-const appId = "app-lojas-geral"; 
 
-// --- UTILITÁRIOS DE DATA ---
+// ID da App para o Firestore (Define onde os dados ficam guardados)
+const APP_ID = "lojas-app-geral";
+
+// --- UTILITÁRIOS ---
 const DAYS = [
   { id: 'seg', label: 'Segunda', index: 1 },
   { id: 'ter', label: 'Terça', index: 2 },
@@ -59,12 +68,13 @@ const DAYS = [
 
 const getLastResetTime = () => {
   const now = new Date();
-  const dayOfWeek = now.getDay(); 
   const d = new Date();
+  // Calcula o último Sábado
   const daysSinceSaturday = (d.getDay() + 1) % 7; 
   d.setDate(d.getDate() - daysSinceSaturday);
   d.setHours(23, 59, 0, 0);
   
+  // Se o resultado for futuro, recua 7 dias
   if (d > now) {
     d.setDate(d.getDate() - 7);
   }
@@ -74,7 +84,6 @@ const getLastResetTime = () => {
 // --- COMPONENTE PRINCIPAL ---
 export default function App() {
   const [user, setUser] = useState(null);
-  const [storeName, setStoreName] = useState('');
   const [activeStore, setActiveStore] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -82,25 +91,33 @@ export default function App() {
   const [newTaskText, setNewTaskText] = useState('');
   const [isResetting, setIsResetting] = useState(false);
 
+  // 1. Autenticação Anónima
   useEffect(() => {
-    signInAnonymously(auth).catch((error) => {
-        console.error("Erro no login anónimo:", error);
-    });
+    const initAuth = async () => {
+       await signInAnonymously(auth);
+    };
+    initAuth();
 
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
       const savedStore = localStorage.getItem('myStoreName');
-      if (savedStore) setActiveStore(savedStore);
+      if (savedStore && STORES.includes(savedStore)) {
+        setActiveStore(savedStore);
+      }
       setLoading(false);
     });
     return () => unsubscribe();
   }, []);
 
+  // 2. Carregar Tarefas e Gerir Reset
   useEffect(() => {
     if (!user || !activeStore) return;
 
     setLoading(true);
-    const storeRef = doc(db, 'lojas', activeStore.toLowerCase().trim());
+    
+    // Caminho na BD: artifacts -> ID -> public -> data -> NOME_LOJA
+    // Usamos esta estrutura específica para garantir que funciona sem erros de permissão
+    const storeRef = doc(db, 'artifacts', APP_ID, 'public', 'data', activeStore.toLowerCase().trim());
 
     const unsubscribe = onSnapshot(storeRef, async (docSnap) => {
       if (docSnap.exists()) {
@@ -108,16 +125,20 @@ export default function App() {
         let currentTasks = data.tasks || [];
         const lastReset = data.lastReset ? data.lastReset.toDate() : new Date(0);
         
+        // --- LÓGICA DE RESET AUTOMÁTICO ---
         const shouldHaveResetAt = getLastResetTime();
         
         if (lastReset < shouldHaveResetAt) {
             console.log("A executar reset semanal...");
             setIsResetting(true);
+            
+            // Mantém as tarefas mas mete completed = false
             const resetTasks = currentTasks.map(t => ({ ...t, completed: false }));
+            
             try {
               await updateDoc(storeRef, {
                 tasks: resetTasks,
-                lastReset: Timestamp.fromDate(new Date())
+                lastReset: Timestamp.fromDate(new Date()) // Marca que o reset foi feito hoje
               });
             } catch (err) {
               console.error("Erro ao fazer reset:", err);
@@ -128,6 +149,7 @@ export default function App() {
         }
 
       } else {
+        // Criar loja se não existe
         await setDoc(storeRef, {
             tasks: [],
             createdAt: Timestamp.now(),
@@ -143,12 +165,11 @@ export default function App() {
     return () => unsubscribe();
   }, [user, activeStore]);
 
-  const handleLoginStore = (e) => {
-    e.preventDefault();
-    if (!storeName.trim()) return;
-    const cleanName = storeName.trim().toUpperCase();
-    localStorage.setItem('myStoreName', cleanName);
-    setActiveStore(cleanName);
+  // --- AÇÕES ---
+
+  const selectStore = (storeName) => {
+    localStorage.setItem('myStoreName', storeName);
+    setActiveStore(storeName);
   };
 
   const handleLogout = () => {
@@ -169,95 +190,244 @@ export default function App() {
       createdAt: new Date().toISOString()
     };
 
-    const storeRef = doc(db, 'lojas', activeStore.toLowerCase().trim());
+    const storeRef = doc(db, 'artifacts', APP_ID, 'public', 'data', activeStore.toLowerCase().trim());
+    
     try {
-      await updateDoc(storeRef, { tasks: arrayUnion(newTask) });
+      await updateDoc(storeRef, {
+        tasks: arrayUnion(newTask)
+      });
       setNewTaskText('');
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error("Erro ao adicionar:", err);
+    }
   };
 
   const toggleTask = async (task) => {
     const updatedTasks = tasks.map(t => {
-      if (t.id === task.id) return { ...t, completed: !t.completed };
+      if (t.id === task.id) {
+        return { ...t, completed: !t.completed };
+      }
       return t;
     });
-    const storeRef = doc(db, 'lojas', activeStore.toLowerCase().trim());
+
+    const storeRef = doc(db, 'artifacts', APP_ID, 'public', 'data', activeStore.toLowerCase().trim());
     await updateDoc(storeRef, { tasks: updatedTasks });
   };
 
   const deleteTask = async (task) => {
-    if(!confirm("Tem a certeza?")) return;
-    const storeRef = doc(db, 'lojas', activeStore.toLowerCase().trim());
-    await updateDoc(storeRef, { tasks: arrayRemove(task) });
+    if(!confirm("Tem a certeza que quer apagar esta tarefa?")) return;
+    
+    const storeRef = doc(db, 'artifacts', APP_ID, 'public', 'data', activeStore.toLowerCase().trim());
+    await updateDoc(storeRef, {
+      tasks: arrayRemove(task)
+    });
   };
 
-  const currentDayTasks = useMemo(() => tasks.filter(t => t.day === selectedDay), [tasks, selectedDay]);
+  // --- CÁLCULOS VISUAIS ---
+  const currentDayTasks = useMemo(() => {
+    return tasks.filter(t => t.day === selectedDay);
+  }, [tasks, selectedDay]);
+
   const progress = useMemo(() => {
     if (currentDayTasks.length === 0) return 0;
     const completed = currentDayTasks.filter(t => t.completed).length;
     return Math.round((completed / currentDayTasks.length) * 100);
   }, [currentDayTasks]);
 
-  if (!user) return <div className="min-h-screen flex items-center justify-center">A carregar...</div>;
 
+  // --- RENDERIZAÇÃO ---
+
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+    </div>
+  );
+
+  // ECRÃ 1: SELEÇÃO DE LOJA (GRID DE BOTÕES)
   if (!activeStore) {
     return (
-      <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center p-4">
-        <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
-          <div className="flex justify-center mb-6"><Store className="w-10 h-10 text-blue-600" /></div>
-          <h1 className="text-2xl font-bold text-center mb-2">Login da Loja</h1>
-          <form onSubmit={handleLoginStore} className="space-y-4">
-            <input type="text" value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="Nome da Loja" className="w-full p-3 border rounded-lg" required />
-            <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-lg">Entrar</button>
-          </form>
+      <div className="min-h-screen bg-gradient-to-br from-slate-100 to-blue-50 flex flex-col items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <div className="bg-white p-4 rounded-2xl shadow-sm inline-block mb-4">
+              <ShoppingBag className="w-10 h-10 text-blue-600" />
+            </div>
+            <h1 className="text-2xl font-bold text-slate-800">Selecione a Loja</h1>
+            <p className="text-slate-500">Gestão de Tarefas Semanal</p>
+          </div>
+          
+          <div className="grid gap-3">
+            {STORES.map((store) => (
+              <button
+                key={store}
+                onClick={() => selectStore(store)}
+                className="group relative overflow-hidden bg-white hover:bg-blue-600 hover:text-white p-4 rounded-xl shadow-sm border border-slate-200 hover:border-blue-600 transition-all duration-300 flex items-center justify-between"
+              >
+                <div className="flex items-center gap-4 z-10">
+                  <div className="bg-slate-100 group-hover:bg-white/20 p-2 rounded-lg transition-colors">
+                    <MapPin className="w-5 h-5 text-slate-500 group-hover:text-white" />
+                  </div>
+                  <span className="font-semibold text-lg">{store}</span>
+                </div>
+                <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-white transform group-hover:translate-x-1 transition-all z-10" />
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-8 text-center text-xs text-slate-400">
+             Reset automático aos Sábados
+          </div>
         </div>
       </div>
     );
   }
 
+  // ECRÃ 2: DASHBOARD
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col pb-20">
-      <header className="bg-white shadow-sm p-4 sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto flex justify-between items-center mb-4">
-          <h1 className="font-bold truncate">{activeStore}</h1>
-          <button onClick={handleLogout} className="text-red-500 text-sm flex items-center gap-1"><LogOut size={16}/> Sair</button>
+    <div className="min-h-screen bg-slate-50 flex flex-col pb-24">
+      {/* Header Fixo */}
+      <header className="bg-white shadow-sm sticky top-0 z-20">
+        <div className="max-w-3xl mx-auto px-4 py-3 flex justify-between items-center border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <div className="bg-blue-600 p-1.5 rounded-lg">
+              <Store className="w-4 h-4 text-white" />
+            </div>
+            <h1 className="font-bold text-slate-800 truncate">{activeStore}</h1>
+          </div>
+          <button 
+            onClick={handleLogout}
+            className="text-slate-400 hover:text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1 transition-colors"
+          >
+            <LogOut size={16}/> <span className="hidden sm:inline">Sair</span>
+          </button>
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-2 max-w-3xl mx-auto">
-          {DAYS.map(day => {
-             const hasPending = tasks.some(t => t.day === day.id && !t.completed);
-             return (
-              <button key={day.id} onClick={() => setSelectedDay(day.id)} className={`p-3 rounded-xl min-w-[64px] flex flex-col items-center ${selectedDay === day.id ? 'bg-blue-600 text-white' : 'bg-white border text-slate-500'}`}>
-                <span className="text-xs font-bold uppercase">{day.label.substr(0, 3)}</span>
-                {hasPending && selectedDay !== day.id && <span className="w-2 h-2 bg-red-400 rounded-full mt-1"></span>}
-              </button>
-            )
-          })}
+        
+        {/* Barra de Dias */}
+        <div className="max-w-3xl mx-auto py-2 px-1 overflow-x-auto scrollbar-hide">
+          <div className="flex justify-between min-w-max gap-2 px-3">
+            {DAYS.map(day => {
+               const hasPending = tasks.some(t => t.day === day.id && !t.completed);
+               const isSelected = selectedDay === day.id;
+               return (
+                <button 
+                  key={day.id} 
+                  onClick={() => setSelectedDay(day.id)} 
+                  className={`relative flex flex-col items-center justify-center w-14 h-14 rounded-2xl transition-all duration-300 ${
+                    isSelected 
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-200 transform -translate-y-1' 
+                      : 'bg-white text-slate-400 hover:bg-slate-100 border border-slate-100'
+                  }`}
+                >
+                  <span className="text-[10px] font-bold uppercase tracking-wider">{day.label.substr(0, 3)}</span>
+                  {hasPending && !isSelected && (
+                    <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-red-400 rounded-full"></span>
+                  )}
+                  {isSelected && (
+                    <div className="absolute -bottom-1 w-1 h-1 bg-blue-600 rounded-full"></div>
+                  )}
+                </button>
+              )
+            })}
+          </div>
         </div>
       </header>
 
-      <main className="flex-1 max-w-3xl w-full mx-auto p-4">
-        {isResetting && <div className="p-4 bg-yellow-50 text-yellow-800 rounded-lg flex items-center gap-2 mb-4"><AlertTriangle/> A reiniciar semana...</div>}
+      {/* Conteúdo */}
+      <main className="flex-1 max-w-3xl w-full mx-auto p-4 animate-in fade-in duration-500">
         
-        <div className="flex justify-between items-end mb-4">
-          <h2 className="text-2xl font-bold">{DAYS.find(d => d.id === selectedDay)?.label}</h2>
-          <span className="text-2xl font-bold text-blue-600">{progress}%</span>
+        {isResetting && (
+          <div className="mb-4 p-4 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl flex items-center gap-3 animate-pulse">
+            <AlertTriangle className="w-5 h-5"/> 
+            <span className="font-medium">A reiniciar a semana...</span>
+          </div>
+        )}
+
+        {/* Resumo do Dia */}
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-6">
+          <div className="flex justify-between items-end mb-4">
+            <div>
+              <h2 className="text-2xl font-bold text-slate-800">{DAYS.find(d => d.id === selectedDay)?.label}</h2>
+              <p className="text-slate-500 text-sm">
+                {currentDayTasks.length} {currentDayTasks.length === 1 ? 'tarefa' : 'tarefas'} hoje
+              </p>
+            </div>
+            <div className="text-right">
+              <span className="text-4xl font-bold text-blue-600 tracking-tight">{progress}%</span>
+            </div>
+          </div>
+          {/* Barra de Progresso */}
+          <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
+              <div 
+                className={`h-full rounded-full transition-all duration-700 ease-out ${progress === 100 ? 'bg-green-500' : 'bg-blue-600'}`}
+                style={{ width: `${progress}%` }}
+              ></div>
+          </div>
         </div>
 
+        {/* Lista de Tarefas */}
         <div className="space-y-3">
-          {currentDayTasks.map(task => (
-            <div key={task.id} className={`flex items-center p-4 bg-white rounded-xl border ${task.completed ? 'opacity-60' : ''}`}>
-              <button onClick={() => toggleTask(task)} className="mr-4">{task.completed ? <CheckCircle2 className="text-green-500"/> : <Circle className="text-slate-300"/>}</button>
-              <span className={`flex-1 ${task.completed ? 'line-through' : ''}`}>{task.text}</span>
-              <button onClick={() => deleteTask(task)} className="text-slate-300 hover:text-red-500"><Trash2 size={18}/></button>
-            </div>
-          ))}
+          {currentDayTasks.length === 0 ? (
+             <div className="flex flex-col items-center justify-center py-12 text-slate-400 bg-white/50 rounded-2xl border-2 border-dashed border-slate-200">
+               <div className="bg-slate-100 p-4 rounded-full mb-3">
+                 <CheckCircle2 className="w-8 h-8 text-slate-300" />
+               </div>
+               <p className="font-medium">Tudo limpo por hoje!</p>
+               <p className="text-sm">Adicione tarefas no botão (+)</p>
+             </div>
+          ) : (
+            currentDayTasks.map(task => (
+              <div 
+                key={task.id} 
+                className={`group flex items-center p-4 bg-white rounded-xl border transition-all duration-200 ${
+                  task.completed 
+                    ? 'border-transparent bg-slate-50/80 opacity-60' 
+                    : 'border-slate-100 shadow-sm hover:border-blue-200 hover:shadow-md'
+                }`}
+              >
+                <button 
+                  onClick={() => toggleTask(task)} 
+                  className="mr-4 focus:outline-none transition-transform active:scale-90"
+                >
+                  {task.completed 
+                    ? <CheckCircle2 className="w-6 h-6 text-green-500"/> 
+                    : <Circle className="w-6 h-6 text-slate-300 hover:text-blue-500"/>
+                  }
+                </button>
+                <span className={`flex-1 font-medium transition-colors ${
+                  task.completed ? 'line-through text-slate-400' : 'text-slate-700'
+                }`}>
+                  {task.text}
+                </span>
+                <button 
+                  onClick={() => deleteTask(task)} 
+                  className="text-slate-300 hover:text-red-500 hover:bg-red-50 p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                  title="Apagar"
+                >
+                  <Trash2 size={18}/>
+                </button>
+              </div>
+            ))
+          )}
         </div>
       </main>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4">
-        <form onSubmit={handleAddTask} className="max-w-3xl mx-auto flex gap-2">
-          <input type="text" value={newTaskText} onChange={(e) => setNewTaskText(e.target.value)} placeholder="Nova tarefa..." className="flex-1 p-3 bg-slate-100 rounded-xl" />
-          <button type="submit" disabled={!newTaskText.trim()} className="bg-blue-600 text-white p-3 rounded-xl"><Plus/></button>
+      {/* Input Fixo no Fundo */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-slate-200 p-4 shadow-lg z-20">
+        <form onSubmit={handleAddTask} className="max-w-3xl mx-auto flex gap-3">
+          <input 
+            type="text" 
+            value={newTaskText} 
+            onChange={(e) => setNewTaskText(e.target.value)} 
+            placeholder={`Nova tarefa para ${DAYS.find(d => d.id === selectedDay)?.label}...`} 
+            className="flex-1 p-3.5 bg-slate-100 border-2 border-transparent focus:bg-white focus:border-blue-500 rounded-xl outline-none transition-all font-medium text-slate-700 placeholder:text-slate-400" 
+          />
+          <button 
+            type="submit" 
+            disabled={!newTaskText.trim()} 
+            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 text-white p-3 rounded-xl transition-all shadow-lg hover:shadow-blue-500/30 aspect-square flex items-center justify-center active:scale-95"
+          >
+            <Plus className="w-6 h-6"/>
+          </button>
         </form>
       </div>
     </div>
