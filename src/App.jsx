@@ -30,12 +30,53 @@ import {
 
 // --- LISTA DE LOJAS ---
 const STORES = [
-  "Loja Lisboa",
-  "Loja Porto",
-  "Loja Coimbra",
-  "Loja Algarve",
-  "Loja Online"
+  "Loja 272",
+  "Loja 271",
+  "Loja 270"
 ];
+
+// --- TAREFAS PADRÃO (Isto preenche a loja quando ela está vazia) ---
+// Pode editar ou adicionar mais linhas aqui
+const getDefaultTasks = () => {
+  const defaults = [
+    // SEGUNDA
+    { text: "Fecho da GT da kw anterior", day: "seg" },
+    { text: "Reunião das NI's às 14H", day: "seg" },
+    { text: "Medidas de inventário", day: "seg" },
+    { text: "Lançar códigos dos avariados inativos", day: "seg" },
+    { text: "Verificar garantias pendentes", day: "seg" },
+    // TERÇA
+    { text: "Revisão de caixa", day: "ter" },
+    { text: "RESI - Reunião com equipa de gestão", day: "ter" },
+    { text: "Plano de FIFOS", day: "ter" },
+    { text: "Quebras de ação 30%", day: "ter" },
+    // QUARTA
+    { text: "RESI - (30 min) com CV", day: "qua" },
+    { text: "Análise do mapa de quebras", day: "qua" },
+    { text: "Análise do LIDL PLUS", day: "qua" },
+    // QUINTA
+    { text: "Análise da Diferença de NF", day: "qui" },
+    { text: "Análise do cockpit de RH", day: "qui" },
+    { text: "Inconformidades e TS", day: "qui" },
+    // SEXTA
+    { text: "Relatório de furtos", day: "sex" },
+    { text: "Análise do NPS", day: "sex" },
+    // SÁBADO
+    { text: "VCP até ao final do dia", day: "sab" },
+    { text: "VCP = 0", day: "sab" },
+    // DOMINGO
+    { text: "Verificar Easyplan", day: "dom" },
+  ];
+
+  // Gera IDs únicos para cada tarefa
+  return defaults.map(t => ({
+    id: crypto.randomUUID(),
+    text: t.text,
+    day: t.day,
+    completed: false,
+    createdAt: new Date().toISOString()
+  }));
+};
 
 // --- CONFIGURAÇÃO FIREBASE ---
 const firebaseConfig = {
@@ -125,6 +166,15 @@ export default function App() {
         let currentTasks = data.tasks || [];
         const lastReset = data.lastReset ? data.lastReset.toDate() : new Date(0);
         
+        // --- AUTO-PREENCHIMENTO DE TAREFAS ---
+        // Se a loja existe mas não tem tarefas (está vazia), preenchemos com as padrão
+        if (currentTasks.length === 0) {
+            console.log("Loja vazia detetada. A inserir tarefas padrão...");
+            currentTasks = getDefaultTasks();
+            // Atualizamos logo na base de dados para ficar guardado
+            await updateDoc(storeRef, { tasks: currentTasks });
+        }
+
         // --- LÓGICA DE RESET AUTOMÁTICO ---
         const shouldHaveResetAt = getLastResetTime();
         
@@ -149,9 +199,9 @@ export default function App() {
         }
 
       } else {
-        // Criar loja se não existe
+        // Criar loja nova já com as tarefas padrão
         await setDoc(storeRef, {
-            tasks: [],
+            tasks: getDefaultTasks(),
             createdAt: Timestamp.now(),
             lastReset: Timestamp.now()
         });
