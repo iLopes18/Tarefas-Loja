@@ -27,47 +27,47 @@ import {
   ArrowRight,
   ShoppingBag,
   Sun,
-  Moon
+  Moon,
+  Lock,
+  Unlock,
+  Megaphone,
+  Check,
+  Info,
+  X,
+  Share,
+  MoreVertical,
+  Download
 } from 'lucide-react';
 
 // --- LISTA DE LOJAS ---
-// Edite aqui os nomes das suas lojas
 const STORES = [
   "Loja 272",
   "Loja 201",
   "Loja 270"
 ];
 
-// --- TAREFAS PADRÃO (Isto preenche a loja quando ela está vazia) ---
-// Pode editar ou adicionar mais linhas aqui
+// --- TAREFAS PADRÃO ---
 const getDefaultTasks = () => {
   const defaults = [
-    // SEGUNDA
     { text: "Fecho da GT da kw anterior", day: "seg" },
     { text: "Reunião das NI's às 14H", day: "seg" },
     { text: "Medidas de inventário", day: "seg" },
     { text: "Lançar códigos dos avariados inativos", day: "seg" },
     { text: "Verificar garantias pendentes", day: "seg" },
-    // TERÇA
     { text: "Revisão de caixa", day: "ter" },
     { text: "RESI - Reunião com equipa de gestão", day: "ter" },
     { text: "Plano de FIFOS", day: "ter" },
     { text: "Quebras de ação 30%", day: "ter" },
-    // QUARTA
     { text: "RESI - (30 min) com CV", day: "qua" },
     { text: "Análise do mapa de quebras", day: "qua" },
     { text: "Análise do LIDL PLUS", day: "qua" },
-    // QUINTA
     { text: "Análise da Diferença de NF", day: "qui" },
     { text: "Análise do cockpit de RH", day: "qui" },
     { text: "Inconformidades e TS", day: "qui" },
-    // SEXTA
     { text: "Relatório de furtos", day: "sex" },
     { text: "Análise do NPS", day: "sex" },
-    // SÁBADO
     { text: "VCP até ao final do dia", day: "sab" },
     { text: "VCP = 0", day: "sab" },
-    // DOMINGO
     { text: "Verificar Easyplan", day: "dom" },
   ];
 
@@ -96,7 +96,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const APP_ID = "lojas-app-geral";
 
-// --- FUNÇÃO DE REFERÊNCIA (CORRIGIDA) ---
+// --- FUNÇÃO DE REFERÊNCIA ---
 const getStoreRef = (storeName) => {
   return doc(db, 'artifacts', APP_ID, 'public', 'data', 'lojas', storeName.toLowerCase().trim());
 };
@@ -112,37 +112,25 @@ const DAYS = [
   { id: 'dom', label: 'Domingo', index: 0 },
 ];
 
-// --- CONFIGURAÇÃO DE RESET SEMANAL ---
-// Alterar aqui para mudar o dia e hora do reset
-const RESET_DAY_INDEX = 0; // 0=Dom, 1=Seg, 2=Ter, 3=Qua, 4=Qui, 5=Sex, 6=Sáb
-const RESET_HOUR = 23;     // Hora (0-23)
-const RESET_MINUTE = 59;   // Minuto (0-59)
+const RESET_DAY_INDEX = 0; 
+const RESET_HOUR = 23;     
+const RESET_MINUTE = 59;   
 
 const getLastResetTime = () => {
   const now = new Date();
   const d = new Date();
-  
-  // Calcula a diferença de dias para o dia de reset alvo
-  // Fórmula: (DiaAtual - DiaAlvo + 7) % 7
   const diffDays = (d.getDay() - RESET_DAY_INDEX + 7) % 7; 
-  
   d.setDate(d.getDate() - diffDays);
   d.setHours(RESET_HOUR, RESET_MINUTE, 0, 0);
-  
-  // Se a data calculada for no futuro (ainda não passou a hora de reset de hoje),
-  // então o último reset foi há uma semana atrás.
   if (d > now) {
     d.setDate(d.getDate() - 7);
   }
   return d;
 };
 
-// Nova função para descobrir o ID do dia atual
 const getTodayId = () => {
-  const todayIndex = new Date().getDay(); // 0 é Domingo, 1 é Segunda, etc.
-  // Encontra o dia no nosso array que corresponde ao índice do JS
+  const todayIndex = new Date().getDay();
   const todayObj = DAYS.find(d => d.index === todayIndex);
-  // Se encontrar devolve o ID (ex: 'seg'), senão devolve 'seg' por segurança
   return todayObj ? todayObj.id : 'seg';
 };
 
@@ -152,57 +140,46 @@ export default function App() {
   const [activeStore, setActiveStore] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
-  
-  // Estado do Tema (Dark/Light)
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
-
-  // AQUI ESTÁ A MUDANÇA: Inicia com o dia de hoje em vez de DAYS[0].id
   const [selectedDay, setSelectedDay] = useState(getTodayId());
-  
   const [newTaskText, setNewTaskText] = useState('');
   const [isResetting, setIsResetting] = useState(false);
+  
+  // Estado de Admin
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [feedbackMsg, setFeedbackMsg] = useState('');
 
-  // Efeito para aplicar o tema ao HTML
+  // NOVO: Estado do Modal de Ajuda
+  const [showInstallHelp, setShowInstallHelp] = useState(false);
+
+  // Tema
   useEffect(() => {
     const root = window.document.documentElement;
-    if (theme === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
+    if (theme === 'dark') root.classList.add('dark');
+    else root.classList.remove('dark');
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  const toggleTheme = () => {
-    setTheme(prev => prev === 'light' ? 'dark' : 'light');
-  };
+  const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
 
-  // 1. Autenticação
+  // Autenticação
   useEffect(() => {
-    const initAuth = async () => {
-       await signInAnonymously(auth);
-    };
+    const initAuth = async () => { await signInAnonymously(auth); };
     initAuth();
-
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
       const savedStore = localStorage.getItem('myStoreName');
-      if (savedStore && STORES.includes(savedStore)) {
-        setActiveStore(savedStore);
-      }
+      if (savedStore && STORES.includes(savedStore)) setActiveStore(savedStore);
       setLoading(false);
     });
     return () => unsubscribe();
   }, []);
 
-  // 2. Carregar Dados
+  // Carregar Dados
   useEffect(() => {
     if (!user || !activeStore) return;
     setLoading(true);
-    
-    // Atualiza o dia selecionado para hoje sempre que se troca de loja ou entra
     setSelectedDay(getTodayId());
-
     const storeRef = getStoreRef(activeStore);
 
     const unsubscribe = onSnapshot(storeRef, async (docSnap) => {
@@ -230,7 +207,6 @@ export default function App() {
         } else {
             setTasks(currentTasks);
         }
-
       } else {
         await setDoc(storeRef, {
             tasks: getDefaultTasks(),
@@ -243,11 +219,10 @@ export default function App() {
         console.error("Erro ao ler dados:", error);
         setLoading(false);
     });
-
     return () => unsubscribe();
   }, [user, activeStore]);
 
-  // --- AÇÕES ---
+  // Ações
   const selectStore = (storeName) => {
     localStorage.setItem('myStoreName', storeName);
     setActiveStore(storeName);
@@ -271,11 +246,27 @@ export default function App() {
       createdAt: new Date().toISOString()
     };
 
-    const storeRef = getStoreRef(activeStore);
     try {
-      await updateDoc(storeRef, { tasks: arrayUnion(newTask) });
+      if (isAdmin) {
+        setFeedbackMsg('A adicionar a todas as lojas...');
+        const promises = STORES.map(storeName => {
+          const ref = getStoreRef(storeName);
+          return setDoc(ref, { 
+            tasks: arrayUnion(newTask) 
+          }, { merge: true });
+        });
+        await Promise.all(promises);
+        setFeedbackMsg(`Adicionado a ${STORES.length} lojas!`);
+        setTimeout(() => setFeedbackMsg(''), 3000);
+      } else {
+        const storeRef = getStoreRef(activeStore);
+        await updateDoc(storeRef, { tasks: arrayUnion(newTask) });
+      }
       setNewTaskText('');
-    } catch (err) { console.error(err); }
+    } catch (err) { 
+      console.error(err); 
+      setFeedbackMsg('Erro ao adicionar');
+    }
   };
 
   const toggleTask = async (task) => {
@@ -293,7 +284,6 @@ export default function App() {
     await updateDoc(storeRef, { tasks: arrayRemove(task) });
   };
 
-  // --- RENDERIZAÇÃO ---
   const currentDayTasks = useMemo(() => tasks.filter(t => t.day === selectedDay), [tasks, selectedDay]);
   const progress = useMemo(() => {
     if (currentDayTasks.length === 0) return 0;
@@ -310,7 +300,14 @@ export default function App() {
   if (!activeStore) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-100 to-blue-50 dark:from-slate-900 dark:to-slate-950 flex flex-col items-center justify-center p-4 transition-colors duration-500">
-        <div className="absolute top-4 right-4">
+        <div className="absolute top-4 right-4 flex gap-2">
+            <button 
+              onClick={() => setShowInstallHelp(true)}
+              className="p-2 rounded-full bg-white dark:bg-slate-800 text-slate-800 dark:text-blue-400 shadow-sm hover:shadow-md transition-all"
+              title="Instalar App"
+            >
+              <Download size={20} />
+            </button>
             <button 
               onClick={toggleTheme}
               className="p-2 rounded-full bg-white dark:bg-slate-800 text-slate-800 dark:text-yellow-400 shadow-sm hover:shadow-md transition-all"
@@ -328,18 +325,12 @@ export default function App() {
           </div>
           <div className="grid gap-3">
             {STORES.map((store) => (
-              <button
-                key={store}
-                onClick={() => selectStore(store)}
-                className="group relative overflow-hidden bg-white dark:bg-slate-800 hover:bg-blue-600 dark:hover:bg-blue-600 hover:text-white p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:border-blue-600 dark:hover:border-blue-500 transition-all duration-300 flex items-center justify-between"
-              >
-                <div className="flex items-center gap-4 z-10">
-                  <div className="bg-slate-100 dark:bg-slate-700 group-hover:bg-white/20 p-2 rounded-lg transition-colors">
-                    <MapPin className="w-5 h-5 text-slate-500 dark:text-slate-300 group-hover:text-white" />
-                  </div>
+              <button key={store} onClick={() => selectStore(store)} className="group relative overflow-hidden bg-white dark:bg-slate-800 hover:bg-blue-600 dark:hover:bg-blue-600 hover:text-white p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-between transition-all">
+                <div className="flex items-center gap-4">
+                  <MapPin className="w-5 h-5 text-slate-500 dark:text-slate-300 group-hover:text-white" />
                   <span className="font-semibold text-lg text-slate-700 dark:text-slate-200 group-hover:text-white">{store}</span>
                 </div>
-                <ArrowRight className="w-5 h-5 text-slate-300 dark:text-slate-600 group-hover:text-white transform group-hover:translate-x-1 transition-all z-10" />
+                <ArrowRight className="w-5 h-5 text-slate-300 dark:text-slate-600 group-hover:text-white" />
               </button>
             ))}
           </div>
@@ -347,6 +338,55 @@ export default function App() {
             Reset automático {([0, 6].includes(RESET_DAY_INDEX) ? 'aos' : 'às')} {DAYS.find(d => d.index === RESET_DAY_INDEX)?.label}s
           </div>
         </div>
+        
+        {/* MODAL DE AJUDA INSTALAÇÃO (LOGIN) */}
+        {showInstallHelp && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-200 dark:border-slate-700">
+              <div className="flex justify-between items-start mb-4">
+                <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                  <Download className="text-blue-500"/> Instalar Aplicação
+                </h2>
+                <button onClick={() => setShowInstallHelp(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                  <X size={24} />
+                </button>
+              </div>
+              
+              <div className="space-y-6">
+                {/* iOS Instructions */}
+                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+                  <h3 className="font-semibold text-slate-800 dark:text-white mb-2 flex items-center gap-2">
+                    <span className="bg-black text-white px-2 py-0.5 rounded text-xs">iOS</span> iPhone / iPad
+                  </h3>
+                  <ol className="text-sm text-slate-600 dark:text-slate-300 space-y-2 list-decimal list-inside">
+                    <li>Toque no botão <strong>Partilhar</strong> <Share size={14} className="inline mx-1"/> na barra inferior.</li>
+                    <li>Arraste para cima e escolha <strong>"Ecrã Principal"</strong> (Add to Home Screen).</li>
+                    <li>Toque em <strong>Adicionar</strong>.</li>
+                  </ol>
+                </div>
+
+                {/* Android Instructions */}
+                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+                  <h3 className="font-semibold text-slate-800 dark:text-white mb-2 flex items-center gap-2">
+                    <span className="bg-green-600 text-white px-2 py-0.5 rounded text-xs">Android</span> Chrome
+                  </h3>
+                  <ol className="text-sm text-slate-600 dark:text-slate-300 space-y-2 list-decimal list-inside">
+                    <li>Toque nos <strong>3 pontos</strong> <MoreVertical size={14} className="inline mx-1"/> no canto superior.</li>
+                    <li>Escolha <strong>"Instalar aplicação"</strong> ou "Adicionar ao ecrã principal".</li>
+                    <li>Confirme em <strong>Instalar</strong>.</li>
+                  </ol>
+                </div>
+              </div>
+              
+              <button 
+                onClick={() => setShowInstallHelp(false)}
+                className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-xl transition-colors"
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -359,13 +399,28 @@ export default function App() {
             <div className="bg-blue-600 p-1.5 rounded-lg">
               <Store className="w-4 h-4 text-white" />
             </div>
-            <h1 className="font-bold text-slate-800 dark:text-white truncate">{activeStore}</h1>
+            <h1 className="font-bold text-slate-800 dark:text-white truncate max-w-[120px] sm:max-w-xs">{activeStore}</h1>
           </div>
           <div className="flex items-center gap-2">
+            
+            {/* Botão de Ajuda na Toolbar */}
             <button 
-                onClick={toggleTheme}
-                className="p-2 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-yellow-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                onClick={() => setShowInstallHelp(true)}
+                className="p-2 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                title="Como Instalar"
             >
+                <Info size={18} />
+            </button>
+
+            <button 
+              onClick={() => setIsAdmin(!isAdmin)}
+              className={`p-2 rounded-lg transition-all ${isAdmin ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+              title="Modo Admin"
+            >
+              {isAdmin ? <Unlock size={18} /> : <Lock size={18} />}
+            </button>
+            
+            <button onClick={toggleTheme} className="p-2 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-yellow-400 hover:bg-slate-50 dark:hover:bg-slate-800">
                 {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
             </button>
             <button onClick={handleLogout} className="text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1 transition-colors">
@@ -373,24 +428,17 @@ export default function App() {
             </button>
           </div>
         </div>
+        
+        {/* BARRA DE DIAS */}
         <div className="max-w-3xl mx-auto py-2 px-1 overflow-x-auto scrollbar-hide">
           <div className="flex justify-between min-w-max gap-2 px-3">
             {DAYS.map(day => {
                const hasPending = tasks.some(t => t.day === day.id && !t.completed);
                const isSelected = selectedDay === day.id;
                return (
-                <button 
-                  key={day.id} 
-                  onClick={() => setSelectedDay(day.id)} 
-                  className={`relative flex flex-col items-center justify-center w-14 h-14 rounded-2xl transition-all duration-300 ${
-                    isSelected 
-                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-200 dark:shadow-blue-900/50 transform -translate-y-1' 
-                      : 'bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-100 dark:border-slate-700'
-                  }`}
-                >
-                  <span className="text-[10px] font-bold uppercase tracking-wider">{day.label.substr(0, 3)}</span>
+                <button key={day.id} onClick={() => setSelectedDay(day.id)} className={`relative flex flex-col items-center justify-center w-14 h-14 rounded-2xl transition-all duration-300 ${isSelected ? 'bg-blue-600 text-white shadow-lg' : 'bg-white dark:bg-slate-800 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+                  <span className="text-[10px] font-bold uppercase">{day.label.substr(0, 3)}</span>
                   {hasPending && !isSelected && <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-red-400 rounded-full"></span>}
-                  {isSelected && <div className="absolute -bottom-1 w-1 h-1 bg-blue-600 dark:bg-blue-400 rounded-full"></div>}
                 </button>
               )
             })}
@@ -398,57 +446,103 @@ export default function App() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-3xl w-full mx-auto p-4 animate-in fade-in duration-500">
-        {isResetting && <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 rounded-xl flex items-center gap-3 animate-pulse"><AlertTriangle className="w-5 h-5"/> <span className="font-medium">A reiniciar a semana...</span></div>}
+      <main className="flex-1 max-w-3xl w-full mx-auto p-4 animate-in fade-in">
+        {isResetting && <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 rounded-xl flex items-center gap-3"><AlertTriangle className="w-5 h-5"/> <span>Reiniciando semana...</span></div>}
 
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 mb-6 transition-colors">
+        {feedbackMsg && (
+          <div className="mb-4 p-3 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-xl flex items-center justify-center gap-2 animate-bounce">
+            <Megaphone size={18} />
+            <span className="font-bold">{feedbackMsg}</span>
+          </div>
+        )}
+
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl shadow-sm mb-6 transition-colors">
           <div className="flex justify-between items-end mb-4">
             <div>
               <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{DAYS.find(d => d.id === selectedDay)?.label}</h2>
-              <p className="text-slate-500 dark:text-slate-400 text-sm">{currentDayTasks.length} {currentDayTasks.length === 1 ? 'tarefa' : 'tarefas'} hoje</p>
+              <p className="text-slate-500 dark:text-slate-400 text-sm">{currentDayTasks.length} tarefas hoje</p>
             </div>
-            <div className="text-right">
-              <span className="text-4xl font-bold text-blue-600 dark:text-blue-400 tracking-tight">{progress}%</span>
-            </div>
+            <span className="text-4xl font-bold text-blue-600 dark:text-blue-400">{progress}%</span>
           </div>
           <div className="w-full bg-slate-100 dark:bg-slate-800 h-3 rounded-full overflow-hidden">
-              <div className={`h-full rounded-full transition-all duration-700 ease-out ${progress === 100 ? 'bg-green-500' : 'bg-blue-600 dark:bg-blue-500'}`} style={{ width: `${progress}%` }}></div>
+              <div className={`h-full rounded-full transition-all duration-700 ${progress === 100 ? 'bg-green-500' : 'bg-blue-600'}`} style={{ width: `${progress}%` }}></div>
           </div>
         </div>
 
         <div className="space-y-3">
-          {currentDayTasks.length === 0 ? (
-             <div className="flex flex-col items-center justify-center py-12 text-slate-400 dark:text-slate-500 bg-white/50 dark:bg-slate-900/50 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800">
-               <div className="bg-slate-100 dark:bg-slate-800 p-4 rounded-full mb-3"><CheckCircle2 className="w-8 h-8 text-slate-300 dark:text-slate-600" /></div>
-               <p className="font-medium">Tudo limpo por hoje!</p>
-               <p className="text-sm">Adicione tarefas no botão (+)</p>
-             </div>
-          ) : (
-            currentDayTasks.map(task => (
-              <div key={task.id} className={`group flex items-center p-4 bg-white dark:bg-slate-900 rounded-xl border transition-all duration-200 ${task.completed ? 'border-transparent bg-slate-50/80 dark:bg-slate-800/50 opacity-60' : 'border-slate-100 dark:border-slate-800 shadow-sm hover:border-blue-200 dark:hover:border-blue-800 hover:shadow-md'}`}>
-                <button onClick={() => toggleTask(task)} className="mr-4 focus:outline-none transition-transform active:scale-90">
-                  {task.completed ? <CheckCircle2 className="w-6 h-6 text-green-500 dark:text-green-400"/> : <Circle className="w-6 h-6 text-slate-300 dark:text-slate-600 hover:text-blue-500 dark:hover:text-blue-400"/>}
+            {currentDayTasks.map(task => (
+              <div key={task.id} className={`flex items-center p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 ${task.completed ? 'opacity-60' : ''}`}>
+                <button onClick={() => toggleTask(task)} className="mr-4">
+                  {task.completed ? <CheckCircle2 className="w-6 h-6 text-green-500 dark:text-green-400"/> : <Circle className="w-6 h-6 text-slate-300 dark:text-slate-600"/>}
                 </button>
-                <span className={`flex-1 font-medium transition-colors ${task.completed ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-200'}`}>{task.text}</span>
-                <button onClick={() => deleteTask(task)} className="text-slate-300 dark:text-slate-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-all" title="Apagar"><Trash2 size={18}/></button>
+                <span className={`flex-1 ${task.completed ? 'line-through text-slate-400' : 'text-slate-700 dark:text-slate-200'}`}>{task.text}</span>
+                <button onClick={() => deleteTask(task)} className="text-slate-300 hover:text-red-500"><Trash2 size={18}/></button>
               </div>
-            ))
-          )}
+            ))}
         </div>
       </main>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-slate-900/90 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 p-4 shadow-lg z-20 transition-colors">
+      <div className={`fixed bottom-0 left-0 right-0 backdrop-blur-md border-t p-4 shadow-lg z-20 transition-colors ${isAdmin ? 'bg-purple-50/90 dark:bg-purple-950/90 border-purple-200 dark:border-purple-800' : 'bg-white/80 dark:bg-slate-900/90 border-slate-200 dark:border-slate-800'}`}>
         <form onSubmit={handleAddTask} className="max-w-3xl mx-auto flex gap-3">
           <input 
             type="text" 
             value={newTaskText} 
             onChange={(e) => setNewTaskText(e.target.value)} 
-            placeholder={`Nova tarefa para ${DAYS.find(d => d.id === selectedDay)?.label}...`} 
-            className="flex-1 p-3.5 bg-slate-100 dark:bg-slate-800 border-2 border-transparent focus:bg-white dark:focus:bg-slate-900 focus:border-blue-500 dark:focus:border-blue-400 rounded-xl outline-none transition-all font-medium text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500" 
+            placeholder={isAdmin ? "ADICIONAR A TODAS AS LOJAS..." : `Nova tarefa para ${DAYS.find(d => d.id === selectedDay)?.label}...`} 
+            className={`flex-1 p-3.5 border-2 rounded-xl outline-none transition-all font-medium ${isAdmin ? 'bg-white dark:bg-slate-900 border-purple-300 focus:border-purple-600 placeholder:text-purple-400' : 'bg-slate-100 dark:bg-slate-800 border-transparent focus:bg-white dark:focus:bg-slate-900 focus:border-blue-500 dark:text-slate-200'}`}
           />
-          <button type="submit" disabled={!newTaskText.trim()} className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 disabled:opacity-50 disabled:hover:bg-blue-600 text-white p-3 rounded-xl transition-all shadow-lg hover:shadow-blue-500/30 aspect-square flex items-center justify-center active:scale-95"><Plus className="w-6 h-6"/></button>
+          <button type="submit" disabled={!newTaskText.trim()} className={`text-white p-3 rounded-xl transition-all shadow-lg aspect-square flex items-center justify-center active:scale-95 ${isAdmin ? 'bg-purple-600 hover:bg-purple-700 shadow-purple-500/30' : 'bg-blue-600 hover:bg-blue-700'}`}>
+            {isAdmin ? <Megaphone className="w-6 h-6"/> : <Plus className="w-6 h-6"/>}
+          </button>
         </form>
       </div>
+
+      {/* MODAL DE AJUDA INSTALAÇÃO (APP) */}
+      {showInstallHelp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-200 dark:border-slate-700">
+            <div className="flex justify-between items-start mb-4">
+              <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                <Download className="text-blue-500"/> Instalar Aplicação
+              </h2>
+              <button onClick={() => setShowInstallHelp(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="space-y-6">
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+                <h3 className="font-semibold text-slate-800 dark:text-white mb-2 flex items-center gap-2">
+                  <span className="bg-black text-white px-2 py-0.5 rounded text-xs">iOS</span> iPhone / iPad
+                </h3>
+                <ol className="text-sm text-slate-600 dark:text-slate-300 space-y-2 list-decimal list-inside">
+                  <li>Toque no botão <strong>Partilhar</strong> <Share size={14} className="inline mx-1"/> na barra inferior.</li>
+                  <li>Arraste para cima e escolha <strong>"Ecrã Principal"</strong> (Add to Home Screen).</li>
+                  <li>Toque em <strong>Adicionar</strong>.</li>
+                </ol>
+              </div>
+
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+                <h3 className="font-semibold text-slate-800 dark:text-white mb-2 flex items-center gap-2">
+                  <span className="bg-green-600 text-white px-2 py-0.5 rounded text-xs">Android</span> Chrome
+                </h3>
+                <ol className="text-sm text-slate-600 dark:text-slate-300 space-y-2 list-decimal list-inside">
+                  <li>Toque nos <strong>3 pontos</strong> <MoreVertical size={14} className="inline mx-1"/> no canto superior.</li>
+                  <li>Escolha <strong>"Instalar aplicação"</strong> ou "Adicionar ao ecrã principal".</li>
+                  <li>Confirme em <strong>Instalar</strong>.</li>
+                </ol>
+              </div>
+            </div>
+            
+            <button 
+              onClick={() => setShowInstallHelp(false)}
+              className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-xl transition-colors"
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
