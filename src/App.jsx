@@ -112,7 +112,7 @@ const DAYS = [
 
 // --- CONFIGURAÇÃO DE RESET SEMANAL ---
 // Alterar aqui para mudar o dia e hora do reset
-const RESET_DAY_INDEX = 0; // 0=Dom, 1=Seg, 2=Ter, 3=Qua, 4=Qui, 5=Sex, 6=Sáb
+const RESET_DAY_INDEX = 6; // 0=Dom, 1=Seg, 2=Ter, 3=Qua, 4=Qui, 5=Sex, 6=Sáb
 const RESET_HOUR = 23;     // Hora (0-23)
 const RESET_MINUTE = 59;   // Minuto (0-59)
 
