@@ -16,12 +16,12 @@ export default defineConfig({
         display: 'standalone', // Isto faz parecer uma app nativa (sem barra de url)
         icons: [
           {
-            src: 'logo.png', // Nota: Idealmente deve adicionar estas imagens à pasta public
+            src: 'pwa-192x192.png', // Nota: Idealmente deve adicionar estas imagens à pasta public
             sizes: '192x192',
             type: 'image/png'
           },
           {
-            src: 'logo.png',
+            src: 'pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png'
           }

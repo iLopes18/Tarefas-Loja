@@ -149,7 +149,7 @@ export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState('');
 
-  // NOVO: Estado do Modal de Ajuda
+  // Estado do Modal de Ajuda
   const [showInstallHelp, setShowInstallHelp] = useState(false);
 
   // Tema
@@ -234,6 +234,7 @@ export default function App() {
     setTasks([]);
   };
 
+  // --- NOVA FUNÇÃO DE ADICIONAR COM CORREÇÃO DO BUG ---
   const handleAddTask = async (e) => {
     e.preventDefault();
     if (!newTaskText.trim()) return;
@@ -249,16 +250,31 @@ export default function App() {
     try {
       if (isAdmin) {
         setFeedbackMsg('A adicionar a todas as lojas...');
-        const promises = STORES.map(storeName => {
+        
+        // CORREÇÃO: Usamos Promise.all com map async para tratar cada loja individualmente
+        const promises = STORES.map(async (storeName) => {
           const ref = getStoreRef(storeName);
-          return setDoc(ref, { 
-            tasks: arrayUnion(newTask) 
-          }, { merge: true });
+          try {
+             // 1. Tenta atualizar (updateDoc) - Isto NUNCA apaga dados existentes, só acrescenta
+             await updateDoc(ref, { 
+               tasks: arrayUnion(newTask) 
+             });
+          } catch (err) {
+             // 2. Se der erro (ex: a loja não existe), então cria-a com setDoc
+             // Isto garante que não "resetamos" lojas que já existem
+             await setDoc(ref, { 
+               tasks: [newTask], 
+               createdAt: Timestamp.now(),
+               lastReset: Timestamp.now()
+             });
+          }
         });
+
         await Promise.all(promises);
         setFeedbackMsg(`Adicionado a ${STORES.length} lojas!`);
         setTimeout(() => setFeedbackMsg(''), 3000);
       } else {
+        // MODO NORMAL
         const storeRef = getStoreRef(activeStore);
         await updateDoc(storeRef, { tasks: arrayUnion(newTask) });
       }
@@ -353,7 +369,6 @@ export default function App() {
               </div>
               
               <div className="space-y-6">
-                {/* iOS Instructions */}
                 <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
                   <h3 className="font-semibold text-slate-800 dark:text-white mb-2 flex items-center gap-2">
                     <span className="bg-black text-white px-2 py-0.5 rounded text-xs">iOS</span> iPhone / iPad
@@ -365,7 +380,6 @@ export default function App() {
                   </ol>
                 </div>
 
-                {/* Android Instructions */}
                 <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
                   <h3 className="font-semibold text-slate-800 dark:text-white mb-2 flex items-center gap-2">
                     <span className="bg-green-600 text-white px-2 py-0.5 rounded text-xs">Android</span> Chrome
