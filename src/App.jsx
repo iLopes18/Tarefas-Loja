@@ -25,7 +25,9 @@ import {
   AlertTriangle,
   MapPin,
   ArrowRight,
-  ShoppingBag
+  ShoppingBag,
+  Sun,
+  Moon
 } from 'lucide-react';
 
 // --- LISTA DE LOJAS ---
@@ -112,7 +114,7 @@ const DAYS = [
 
 // --- CONFIGURAÇÃO DE RESET SEMANAL ---
 // Alterar aqui para mudar o dia e hora do reset
-const RESET_DAY_INDEX = 6; // 0=Dom, 1=Seg, 2=Ter, 3=Qua, 4=Qui, 5=Sex, 6=Sáb
+const RESET_DAY_INDEX = 0; // 0=Dom, 1=Seg, 2=Ter, 3=Qua, 4=Qui, 5=Sex, 6=Sáb
 const RESET_HOUR = 23;     // Hora (0-23)
 const RESET_MINUTE = 59;   // Minuto (0-59)
 
@@ -151,11 +153,29 @@ export default function App() {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   
+  // Estado do Tema (Dark/Light)
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
+
   // AQUI ESTÁ A MUDANÇA: Inicia com o dia de hoje em vez de DAYS[0].id
   const [selectedDay, setSelectedDay] = useState(getTodayId());
   
   const [newTaskText, setNewTaskText] = useState('');
   const [isResetting, setIsResetting] = useState(false);
+
+  // Efeito para aplicar o tema ao HTML
+  useEffect(() => {
+    const root = window.document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
 
   // 1. Autenticação
   useEffect(() => {
@@ -181,8 +201,6 @@ export default function App() {
     setLoading(true);
     
     // Atualiza o dia selecionado para hoje sempre que se troca de loja ou entra
-    // Opcional: Se quiser que ele mude o dia automaticamente se a app ficar aberta 24h, precisaria de um timer
-    // Mas para o uso normal (abrir a app), isto basta.
     setSelectedDay(getTodayId());
 
     const storeRef = getStoreRef(activeStore);
@@ -284,40 +302,48 @@ export default function App() {
   }, [currentDayTasks]);
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
     </div>
   );
 
   if (!activeStore) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-100 to-blue-50 flex flex-col items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-slate-100 to-blue-50 dark:from-slate-900 dark:to-slate-950 flex flex-col items-center justify-center p-4 transition-colors duration-500">
+        <div className="absolute top-4 right-4">
+            <button 
+              onClick={toggleTheme}
+              className="p-2 rounded-full bg-white dark:bg-slate-800 text-slate-800 dark:text-yellow-400 shadow-sm hover:shadow-md transition-all"
+            >
+              {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
+            </button>
+        </div>
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
-            <div className="bg-white p-4 rounded-2xl shadow-sm inline-block mb-4">
-              <ShoppingBag className="w-10 h-10 text-blue-600" />
+            <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm inline-block mb-4 transition-colors">
+              <ShoppingBag className="w-10 h-10 text-blue-600 dark:text-blue-400" />
             </div>
-            <h1 className="text-2xl font-bold text-slate-800">Selecione a Loja</h1>
-            <p className="text-slate-500">Gestão de Tarefas Semanal</p>
+            <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Selecione a Loja</h1>
+            <p className="text-slate-500 dark:text-slate-400">Gestão de Tarefas Semanal</p>
           </div>
           <div className="grid gap-3">
             {STORES.map((store) => (
               <button
                 key={store}
                 onClick={() => selectStore(store)}
-                className="group relative overflow-hidden bg-white hover:bg-blue-600 hover:text-white p-4 rounded-xl shadow-sm border border-slate-200 hover:border-blue-600 transition-all duration-300 flex items-center justify-between"
+                className="group relative overflow-hidden bg-white dark:bg-slate-800 hover:bg-blue-600 dark:hover:bg-blue-600 hover:text-white p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:border-blue-600 dark:hover:border-blue-500 transition-all duration-300 flex items-center justify-between"
               >
                 <div className="flex items-center gap-4 z-10">
-                  <div className="bg-slate-100 group-hover:bg-white/20 p-2 rounded-lg transition-colors">
-                    <MapPin className="w-5 h-5 text-slate-500 group-hover:text-white" />
+                  <div className="bg-slate-100 dark:bg-slate-700 group-hover:bg-white/20 p-2 rounded-lg transition-colors">
+                    <MapPin className="w-5 h-5 text-slate-500 dark:text-slate-300 group-hover:text-white" />
                   </div>
-                  <span className="font-semibold text-lg">{store}</span>
+                  <span className="font-semibold text-lg text-slate-700 dark:text-slate-200 group-hover:text-white">{store}</span>
                 </div>
-                <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-white transform group-hover:translate-x-1 transition-all z-10" />
+                <ArrowRight className="w-5 h-5 text-slate-300 dark:text-slate-600 group-hover:text-white transform group-hover:translate-x-1 transition-all z-10" />
               </button>
             ))}
           </div>
-          <div className="mt-8 text-center text-xs text-slate-400">
+          <div className="mt-8 text-center text-xs text-slate-400 dark:text-slate-500">
             Reset automático {([0, 6].includes(RESET_DAY_INDEX) ? 'aos' : 'às')} {DAYS.find(d => d.index === RESET_DAY_INDEX)?.label}s
           </div>
         </div>
@@ -326,18 +352,26 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col pb-24">
-      <header className="bg-white shadow-sm sticky top-0 z-20">
-        <div className="max-w-3xl mx-auto px-4 py-3 flex justify-between items-center border-b border-slate-100">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col pb-24 transition-colors duration-500">
+      <header className="bg-white dark:bg-slate-900 shadow-sm sticky top-0 z-20 transition-colors">
+        <div className="max-w-3xl mx-auto px-4 py-3 flex justify-between items-center border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-2">
             <div className="bg-blue-600 p-1.5 rounded-lg">
               <Store className="w-4 h-4 text-white" />
             </div>
-            <h1 className="font-bold text-slate-800 truncate">{activeStore}</h1>
+            <h1 className="font-bold text-slate-800 dark:text-white truncate">{activeStore}</h1>
           </div>
-          <button onClick={handleLogout} className="text-slate-400 hover:text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1 transition-colors">
-            <LogOut size={16}/> <span className="hidden sm:inline">Sair</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+                onClick={toggleTheme}
+                className="p-2 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-yellow-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+            >
+                {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+            </button>
+            <button onClick={handleLogout} className="text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1 transition-colors">
+                <LogOut size={16}/> <span className="hidden sm:inline">Sair</span>
+            </button>
+          </div>
         </div>
         <div className="max-w-3xl mx-auto py-2 px-1 overflow-x-auto scrollbar-hide">
           <div className="flex justify-between min-w-max gap-2 px-3">
@@ -345,10 +379,18 @@ export default function App() {
                const hasPending = tasks.some(t => t.day === day.id && !t.completed);
                const isSelected = selectedDay === day.id;
                return (
-                <button key={day.id} onClick={() => setSelectedDay(day.id)} className={`relative flex flex-col items-center justify-center w-14 h-14 rounded-2xl transition-all duration-300 ${isSelected ? 'bg-blue-600 text-white shadow-lg shadow-blue-200 transform -translate-y-1' : 'bg-white text-slate-400 hover:bg-slate-100 border border-slate-100'}`}>
+                <button 
+                  key={day.id} 
+                  onClick={() => setSelectedDay(day.id)} 
+                  className={`relative flex flex-col items-center justify-center w-14 h-14 rounded-2xl transition-all duration-300 ${
+                    isSelected 
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-200 dark:shadow-blue-900/50 transform -translate-y-1' 
+                      : 'bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-100 dark:border-slate-700'
+                  }`}
+                >
                   <span className="text-[10px] font-bold uppercase tracking-wider">{day.label.substr(0, 3)}</span>
                   {hasPending && !isSelected && <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-red-400 rounded-full"></span>}
-                  {isSelected && <div className="absolute -bottom-1 w-1 h-1 bg-blue-600 rounded-full"></div>}
+                  {isSelected && <div className="absolute -bottom-1 w-1 h-1 bg-blue-600 dark:bg-blue-400 rounded-full"></div>}
                 </button>
               )
             })}
@@ -357,48 +399,54 @@ export default function App() {
       </header>
 
       <main className="flex-1 max-w-3xl w-full mx-auto p-4 animate-in fade-in duration-500">
-        {isResetting && <div className="mb-4 p-4 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl flex items-center gap-3 animate-pulse"><AlertTriangle className="w-5 h-5"/> <span className="font-medium">A reiniciar a semana...</span></div>}
+        {isResetting && <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 rounded-xl flex items-center gap-3 animate-pulse"><AlertTriangle className="w-5 h-5"/> <span className="font-medium">A reiniciar a semana...</span></div>}
 
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-6">
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 mb-6 transition-colors">
           <div className="flex justify-between items-end mb-4">
             <div>
-              <h2 className="text-2xl font-bold text-slate-800">{DAYS.find(d => d.id === selectedDay)?.label}</h2>
-              <p className="text-slate-500 text-sm">{currentDayTasks.length} {currentDayTasks.length === 1 ? 'tarefa' : 'tarefas'} hoje</p>
+              <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{DAYS.find(d => d.id === selectedDay)?.label}</h2>
+              <p className="text-slate-500 dark:text-slate-400 text-sm">{currentDayTasks.length} {currentDayTasks.length === 1 ? 'tarefa' : 'tarefas'} hoje</p>
             </div>
             <div className="text-right">
-              <span className="text-4xl font-bold text-blue-600 tracking-tight">{progress}%</span>
+              <span className="text-4xl font-bold text-blue-600 dark:text-blue-400 tracking-tight">{progress}%</span>
             </div>
           </div>
-          <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
-              <div className={`h-full rounded-full transition-all duration-700 ease-out ${progress === 100 ? 'bg-green-500' : 'bg-blue-600'}`} style={{ width: `${progress}%` }}></div>
+          <div className="w-full bg-slate-100 dark:bg-slate-800 h-3 rounded-full overflow-hidden">
+              <div className={`h-full rounded-full transition-all duration-700 ease-out ${progress === 100 ? 'bg-green-500' : 'bg-blue-600 dark:bg-blue-500'}`} style={{ width: `${progress}%` }}></div>
           </div>
         </div>
 
         <div className="space-y-3">
           {currentDayTasks.length === 0 ? (
-             <div className="flex flex-col items-center justify-center py-12 text-slate-400 bg-white/50 rounded-2xl border-2 border-dashed border-slate-200">
-               <div className="bg-slate-100 p-4 rounded-full mb-3"><CheckCircle2 className="w-8 h-8 text-slate-300" /></div>
+             <div className="flex flex-col items-center justify-center py-12 text-slate-400 dark:text-slate-500 bg-white/50 dark:bg-slate-900/50 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800">
+               <div className="bg-slate-100 dark:bg-slate-800 p-4 rounded-full mb-3"><CheckCircle2 className="w-8 h-8 text-slate-300 dark:text-slate-600" /></div>
                <p className="font-medium">Tudo limpo por hoje!</p>
                <p className="text-sm">Adicione tarefas no botão (+)</p>
              </div>
           ) : (
             currentDayTasks.map(task => (
-              <div key={task.id} className={`group flex items-center p-4 bg-white rounded-xl border transition-all duration-200 ${task.completed ? 'border-transparent bg-slate-50/80 opacity-60' : 'border-slate-100 shadow-sm hover:border-blue-200 hover:shadow-md'}`}>
+              <div key={task.id} className={`group flex items-center p-4 bg-white dark:bg-slate-900 rounded-xl border transition-all duration-200 ${task.completed ? 'border-transparent bg-slate-50/80 dark:bg-slate-800/50 opacity-60' : 'border-slate-100 dark:border-slate-800 shadow-sm hover:border-blue-200 dark:hover:border-blue-800 hover:shadow-md'}`}>
                 <button onClick={() => toggleTask(task)} className="mr-4 focus:outline-none transition-transform active:scale-90">
-                  {task.completed ? <CheckCircle2 className="w-6 h-6 text-green-500"/> : <Circle className="w-6 h-6 text-slate-300 hover:text-blue-500"/>}
+                  {task.completed ? <CheckCircle2 className="w-6 h-6 text-green-500 dark:text-green-400"/> : <Circle className="w-6 h-6 text-slate-300 dark:text-slate-600 hover:text-blue-500 dark:hover:text-blue-400"/>}
                 </button>
-                <span className={`flex-1 font-medium transition-colors ${task.completed ? 'line-through text-slate-400' : 'text-slate-700'}`}>{task.text}</span>
-                <button onClick={() => deleteTask(task)} className="text-slate-300 hover:text-red-500 hover:bg-red-50 p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-all" title="Apagar"><Trash2 size={18}/></button>
+                <span className={`flex-1 font-medium transition-colors ${task.completed ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-200'}`}>{task.text}</span>
+                <button onClick={() => deleteTask(task)} className="text-slate-300 dark:text-slate-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-all" title="Apagar"><Trash2 size={18}/></button>
               </div>
             ))
           )}
         </div>
       </main>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-slate-200 p-4 shadow-lg z-20">
+      <div className="fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-slate-900/90 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 p-4 shadow-lg z-20 transition-colors">
         <form onSubmit={handleAddTask} className="max-w-3xl mx-auto flex gap-3">
-          <input type="text" value={newTaskText} onChange={(e) => setNewTaskText(e.target.value)} placeholder={`Nova tarefa para ${DAYS.find(d => d.id === selectedDay)?.label}...`} className="flex-1 p-3.5 bg-slate-100 border-2 border-transparent focus:bg-white focus:border-blue-500 rounded-xl outline-none transition-all font-medium text-slate-700 placeholder:text-slate-400" />
-          <button type="submit" disabled={!newTaskText.trim()} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 text-white p-3 rounded-xl transition-all shadow-lg hover:shadow-blue-500/30 aspect-square flex items-center justify-center active:scale-95"><Plus className="w-6 h-6"/></button>
+          <input 
+            type="text" 
+            value={newTaskText} 
+            onChange={(e) => setNewTaskText(e.target.value)} 
+            placeholder={`Nova tarefa para ${DAYS.find(d => d.id === selectedDay)?.label}...`} 
+            className="flex-1 p-3.5 bg-slate-100 dark:bg-slate-800 border-2 border-transparent focus:bg-white dark:focus:bg-slate-900 focus:border-blue-500 dark:focus:border-blue-400 rounded-xl outline-none transition-all font-medium text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500" 
+          />
+          <button type="submit" disabled={!newTaskText.trim()} className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 disabled:opacity-50 disabled:hover:bg-blue-600 text-white p-3 rounded-xl transition-all shadow-lg hover:shadow-blue-500/30 aspect-square flex items-center justify-center active:scale-95"><Plus className="w-6 h-6"/></button>
         </form>
       </div>
     </div>
